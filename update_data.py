@@ -1,19 +1,44 @@
-import pandas as pd
 import requests
+import pandas as pd
 from datetime import datetime
+import os
 
-print('Fetching latest epidemiological data from Our World in Data...')
+# === GLOBAL KEY INDICATORS (OWID) ===
+def fetch_global_owid():
+    url = "https://covid.ourworldindata.org/data/owid-covid-data.csv"
+    df = pd.read_csv(url)
+    # Keep latest snapshot per country + key columns
+    latest = df.sort_values('date').groupby('location').last().reset_index()
+    latest = latest[['location', 'date', 'total_cases', 'new_cases', 'total_deaths', 'new_deaths', 
+                     'total_vaccinations', 'people_fully_vaccinated', 'population']]
+    return latest
 
-# Main OWID COVID-19 dataset - very reliable and updated frequently
-url = 'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv'
-df = pd.read_csv(url)
+# === SIGNIFICANT EPIDEMIOLOGICAL EVENTS (WHO) ===
+def fetch_who_events():
+    try:
+        r = requests.get("https://www.who.int/api/news/diseaseoutbreaknews", timeout=20)
+        if r.status_code == 200:
+            data = r.json().get('value', [])
+            df = pd.DataFrame(data)
+            if not df.empty:
+                # Try to extract useful columns
+                cols = [col for col in ['title', 'description', 'date', 'countries'] if col in df.columns]
+                df = df[cols].head(20)
+                return df
+    except:
+        pass
+    return pd.DataFrame(columns=['title','description','date','countries'])
 
-# Filter Australia data (very crisp & focused)
-aus_df = df[df['iso_code'] == 'AUS'].copy()
-
-# Save files
-aus_df.to_csv('data/au_latest_epi.csv', index=False)
-df.to_csv('data/global_latest_epi.csv', index=False)
-
-print(f'Success! Saved {len(aus_df)} rows of Australia epi data.')
-print('Files ready for your dashboard.')
+# === RUN & SAVE ===
+if __name__ == "__main__":
+    print("Fetching global epi data...")
+    global_data = fetch_global_owid()
+    events = fetch_who_events()
+    
+    os.makedirs("data", exist_ok=True)
+    global_data.to_csv("data/global_indicators.csv", index=False)
+    events.to_csv("data/significant_events.csv", index=False)
+    
+    print(f"✅ Global dashboard updated at {datetime.now()}")
+    print(f"   • Global indicators: {len(global_data)} countries")
+    print(f"   • Significant events: {len(events)} recent outbreaks")
