@@ -3,44 +3,39 @@ import pandas as pd
 from datetime import datetime
 import os
 
+print("Starting global epi data fetch...")
+
 # === GLOBAL KEY INDICATORS (OWID) ===
 def fetch_global_owid():
     try:
         url = "https://covid.ourworldindata.org/data/owid-covid-data.csv"
-        print("Downloading OWID data...")
-        # Use fewer columns to speed up and avoid memory issues
-        df = pd.read_csv(url, usecols=['location', 'date', 'total_cases', 'new_cases', 'total_deaths', 'new_deaths', 
-                                       'total_vaccinations', 'people_fully_vaccinated', 'population'])
-        # Keep latest snapshot per country
+        df = pd.read_csv(url, low_memory=False)
         latest = df.sort_values('date').groupby('location').last().reset_index()
+        cols = ['location', 'date', 'total_cases', 'new_cases', 'total_deaths', 
+                'new_deaths', 'total_vaccinations', 'people_fully_vaccinated', 'population']
+        latest = latest[cols]
+        print(f"✅ OWID data: {len(latest)} locations")
         return latest
     except Exception as e:
-        print(f"OWID fetch error: {e}")
+        print(f"OWID error: {e}")
         return pd.DataFrame()
 
-# === SIGNIFICANT EPIDEMIOLOGICAL EVENTS (WHO) ===
+# === SIGNIFICANT EVENTS (WHO) ===
 def fetch_who_events():
     try:
-        print("Fetching WHO events...")
-        r = requests.get("https://www.who.int/api/news/diseaseoutbreaknews", timeout=30)
-        print(f"WHO status: {r.status_code}")
+        r = requests.get("https://www.who.int/api/news/diseaseoutbreaknews", timeout=15)
         if r.status_code == 200:
             data = r.json().get('value', [])
             df = pd.DataFrame(data)
             if not df.empty:
-                # Flexible column selection
-                cols = [col for col in ['title', 'description', 'publicationDate', 'date', 'countries'] if col in df.columns]
-                if cols:
-                    df = df[cols].head(20)
-                    return df
-        return pd.DataFrame()
+                print(f"✅ WHO events: {len(df)} found")
+                return df.head(20)
     except Exception as e:
-        print(f"WHO fetch error: {e}")
-        return pd.DataFrame(columns=['title','description','date','countries'])
+        print(f"WHO error: {e}")
+    return pd.DataFrame()
 
-# === RUN & SAVE ===
+# === SAVE ===
 if __name__ == "__main__":
-    print("Fetching global epi data...")
     global_data = fetch_global_owid()
     events = fetch_who_events()
     
@@ -48,7 +43,4 @@ if __name__ == "__main__":
     global_data.to_csv("data/global_indicators.csv", index=False)
     events.to_csv("data/significant_events.csv", index=False)
     
-    print(f"✅ Global dashboard updated at {datetime.now()}")
-    print(f"   • Global indicators: {len(global_data)} countries")
-    print(f"   • Significant events: {len(events)} recent outbreaks")
-    print("Script completed successfully.")
+    print(f"✅ Dashboard updated at {datetime.now()}")
