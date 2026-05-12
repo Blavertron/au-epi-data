@@ -9,11 +9,10 @@ print("Starting global epi data fetch...")
 def fetch_global_owid():
     try:
         url = "https://covid.ourworldindata.org/data/owid-covid-data.csv"
-        df = pd.read_csv(url, low_memory=False)
+        print("Downloading OWID data... (this can take a moment)")
+        # Use usecols to drastically reduce memory usage
+        df = pd.read_csv(url, low_memory=False, usecols=['location', 'date', 'total_cases', 'new_cases', 'total_deaths', 'new_deaths', 'total_vaccinations', 'people_fully_vaccinated', 'population'])
         latest = df.sort_values('date').groupby('location').last().reset_index()
-        cols = ['location', 'date', 'total_cases', 'new_cases', 'total_deaths', 
-                'new_deaths', 'total_vaccinations', 'people_fully_vaccinated', 'population']
-        latest = latest[cols]
         print(f"✅ OWID data: {len(latest)} locations")
         return latest
     except Exception as e:
