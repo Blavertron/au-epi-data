@@ -5,29 +5,38 @@ import os
 
 # === GLOBAL KEY INDICATORS (OWID) ===
 def fetch_global_owid():
-    url = "https://covid.ourworldindata.org/data/owid-covid-data.csv"
-    df = pd.read_csv(url)
-    # Keep latest snapshot per country + key columns
-    latest = df.sort_values('date').groupby('location').last().reset_index()
-    latest = latest[['location', 'date', 'total_cases', 'new_cases', 'total_deaths', 'new_deaths', 
-                     'total_vaccinations', 'people_fully_vaccinated', 'population']]
-    return latest
+    try:
+        url = "https://covid.ourworldindata.org/data/owid-covid-data.csv"
+        print("Downloading OWID data...")
+        # Use fewer columns to speed up and avoid memory issues
+        df = pd.read_csv(url, usecols=['location', 'date', 'total_cases', 'new_cases', 'total_deaths', 'new_deaths', 
+                                       'total_vaccinations', 'people_fully_vaccinated', 'population'])
+        # Keep latest snapshot per country
+        latest = df.sort_values('date').groupby('location').last().reset_index()
+        return latest
+    except Exception as e:
+        print(f"OWID fetch error: {e}")
+        return pd.DataFrame()
 
 # === SIGNIFICANT EPIDEMIOLOGICAL EVENTS (WHO) ===
 def fetch_who_events():
     try:
-        r = requests.get("https://www.who.int/api/news/diseaseoutbreaknews", timeout=20)
+        print("Fetching WHO events...")
+        r = requests.get("https://www.who.int/api/news/diseaseoutbreaknews", timeout=30)
+        print(f"WHO status: {r.status_code}")
         if r.status_code == 200:
             data = r.json().get('value', [])
             df = pd.DataFrame(data)
             if not df.empty:
-                # Try to extract useful columns
-                cols = [col for col in ['title', 'description', 'date', 'countries'] if col in df.columns]
-                df = df[cols].head(20)
-                return df
-    except:
-        pass
-    return pd.DataFrame(columns=['title','description','date','countries'])
+                # Flexible column selection
+                cols = [col for col in ['title', 'description', 'publicationDate', 'date', 'countries'] if col in df.columns]
+                if cols:
+                    df = df[cols].head(20)
+                    return df
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"WHO fetch error: {e}")
+        return pd.DataFrame(columns=['title','description','date','countries'])
 
 # === RUN & SAVE ===
 if __name__ == "__main__":
@@ -42,3 +51,4 @@ if __name__ == "__main__":
     print(f"✅ Global dashboard updated at {datetime.now()}")
     print(f"   • Global indicators: {len(global_data)} countries")
     print(f"   • Significant events: {len(events)} recent outbreaks")
+    print("Script completed successfully.")
